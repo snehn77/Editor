@@ -51,8 +51,52 @@ export const tableService = {
   },
   
   exportTableData: async (batchId) => {
-    // This will download the file directly
-    window.open(`/api/tabledata/export/${batchId}`, '_blank');
+    try {
+      // Use fetch with proper binary response handling
+      const response = await fetch(`/api/TableData/export/${batchId}`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Export failed with status: ${response.status}`);
+      }
+      
+      // Get the blob from response
+      const blob = await response.blob();
+      
+      // Get filename from Content-Disposition header if present
+      const contentDisposition = response.headers.get('content-disposition');
+      let filename = `TableData_${batchId}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="(.+)"/i);
+        if (filenameMatch && filenameMatch.length === 2) {
+          filename = filenameMatch[1];
+        }
+      }
+      
+      // Create download link and trigger download
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      
+      // Clean up
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+      
+      return true;
+    } catch (error) {
+      console.error('Error exporting Excel file:', error);
+      throw error;
+    }
   },
   
   // Draft changes endpoints

@@ -1,4 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import tableService from '../../services/tableService';
 import {
   Box,
   Paper,
@@ -21,11 +23,16 @@ import {
   InputLabel,
   FormControl,
   Typography,
-  Chip
+  Chip,
+  ClickAwayListener,
+  InputAdornment
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import CheckIcon from '@mui/icons-material/Check';
+import CloseIcon from '@mui/icons-material/Close';
 import { v4 as uuidv4 } from 'uuid';
 
 const EditableTable = ({
@@ -34,8 +41,10 @@ const EditableTable = ({
   onDiscardChanges,
   onReviewChanges,
   changes = [], // Array of changes made to the table
-  readonly = false
+  readonly = false,
+  batchId // For exporting data as Excel
 }) => {
+  const navigate = useNavigate(); // For navigation after Excel export
   const [rows, setRows] = useState([]);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [currentRow, setCurrentRow] = useState(null);
@@ -44,6 +53,14 @@ const EditableTable = ({
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [rowToDelete, setRowToDelete] = useState(null);
+  
+  // For inline editing
+  const [inlineEditCell, setInlineEditCell] = useState(null); // {rowId, columnId}
+  const [inlineEditValue, setInlineEditValue] = useState('');
+  const cellInputRef = useRef(null);
+  
+  // For tracking whether a selection has occurred to distinguish between click and double-click
+  const [cellSelection, setCellSelection] = useState(null);
 
   // Initialize rows from data
   useEffect(() => {
@@ -241,27 +258,122 @@ const EditableTable = ({
     }));
   };
 
-  return (
-    <Box>
-      <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between' }}>
-        <Typography variant="h6" component="h2">
-          Table Data {readonly && "(Read Only)"}
-        </Typography>
-        {!readonly && (
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<AddIcon />}
-            onClick={handleAddRow}
-          >
-            Add Row
-          </Button>
-        )}
-      </Box>
+  // Handle cell click for inline editing
+  const handleCellClick = (row, columnId, value) => {
+    // Don't allow editing of these meta fields
+    if (columnId === 'lastModified' || columnId === 'lastModifiedBy' || readonly) {
+      return;
+    }
+    
+    // Don't allow editing deleted rows
+    if (isRowDeleted(row)) {
+      return;
+    }
+    
+    // Initialize cell editing
+    setInlineEditCell({ rowId: row.sessionDataId, columnId });
+    setInlineEditValue(value !== undefined && value !== null ? value.toString() : '');
+    
+    // Focus the input field after a small delay to ensure it's rendered
+    setTimeout(() => {
+      if (cellInputRef.current) {
+        cellInputRef.current.focus();
+      }
+    }, 50);
+  };
+
+  // Handle inline editing save
+  const handleInlineEditSave = () => {
+    if (!inlineEditCell) return;
+    
+    // Find the row being edited
+    const rowIndex = rows.findIndex(r => r.sessionDataId === inlineEditCell.rowId);
+    if (rowIndex === -1) return;
+    
+    const row = rows[rowIndex];
+    
+    // Create a copy of the row with the updated field
+    const updatedRow = { ...row };
+    updatedRow[inlineEditCell.columnId] = inlineEditValue;
+    
+    // Save changes
+    onSaveChanges([{
+      changeType: 'Edit',
+      sessionDataId: row.sessionDataId,
+      originalData: row,
+      newData: updatedRow
+    }]);
+    
+    // Clear inline editing state
+    setInlineEditCell(null);
+    setInlineEditValue('');
+  };
+
+  // Handle cancel inline editing
+  const handleInlineEditCancel = () => {
+    setInlineEditCell(null);
+    setInlineEditValue('');
+  };
+  
+  // Handle save to Excel and navigate to dashboard
+  const handleSaveDraft = async () => {
+    try {
+      // First save any pending changes
+      if (inlineEditCell) {
+        await handleInlineEditSave();
+      }
       
-      <Paper sx={{ width: '100%', overflow: 'hidden' }}>
-        <TableContainer sx={{ maxHeight: 440 }}>
-          <Table stickyHeader aria-label="sticky table">
+      // Save any draft changes first (if needed)
+      if (changes.length > 0 && onSaveChanges) {
+        await onSaveChanges(changes);
+      }
+      
+      // Export data to Excel
+      if (batchId) {
+        console.log('Exporting data for batch:', batchId);
+        
+        // Show loading or notification here if needed
+        
+        // Export to Excel using the table service
+        const result = await tableService.exportTableData(batchId);
+        
+        if (result) {
+          console.log('Excel export successful');
+          
+          // Navigate back to dashboard after a brief delay to ensure download starts
+          setTimeout(() => {
+            navigate('/');
+          }, 1500);
+        }
+      } else {
+        console.error('No batch ID provided for export');
+        // Could show an error message to the user here
+      }
+    } catch (error) {
+      console.error('Error exporting Excel:', error);
+      // Could show an error message to the user here
+      alert('Failed to export data: ' + (error.message || 'Unknown error'));
+    }
+  };
+
+  return (
+    <Box sx={{ width: '100%' }}>
+      <Paper sx={{ width: '100%', overflow: 'hidden', mb: 2 }}>
+        <TableContainer 
+          sx={{ 
+            maxHeight: 500,
+            '& .MuiTableHead-root': {
+              position: 'sticky',
+              top: 0,
+              zIndex: 2
+            },
+            '& .MuiTableCell-stickyHeader': {
+              backgroundColor: '#f5f5f5',
+              boxShadow: '0 2px 2px -1px rgba(0,0,0,0.1)'
+            }
+          }}
+        >
+          <Table stickyHeader>
             <TableHead>
               <TableRow>
                 {!readonly && (
@@ -334,13 +446,75 @@ const EditableTable = ({
                       )}
                       {columns.map((column) => {
                         const value = row[column.id];
+                        const isEditing = inlineEditCell && 
+                          inlineEditCell.rowId === row.sessionDataId && 
+                          inlineEditCell.columnId === column.id;
+                          
                         return (
-                          <TableCell key={column.id} align="left">
-                            {column.format && value !== null && value !== undefined
-                              ? column.format(value)
-                              : value === null || value === undefined
-                              ? ''
-                              : value.toString()}
+                          <TableCell 
+                            key={column.id} 
+                            align="left"
+                            onClick={() => handleCellClick(row, column.id, value)}
+                            className={`
+                              ${isDeleted ? 'deleted' : ''} 
+                              ${isModified && column.id !== 'lastModified' && column.id !== 'lastModifiedBy' ? 'modified' : ''}
+                              ${isEditing ? 'editing' : ''}
+                              ${column.id !== 'lastModified' && column.id !== 'lastModifiedBy' && !readonly && !isDeleted ? 'editable-cell' : ''}
+                            `}
+                            sx={{ 
+                              padding: isEditing ? '0' : '6px 16px',
+                              position: 'relative',
+                              '&.editable-cell:hover::after': {
+                                content: '""',
+                                position: 'absolute',
+                                bottom: '0',
+                                right: '0',
+                                width: '0',
+                                height: '0',
+                                borderStyle: 'solid',
+                                borderWidth: '0 0 8px 8px',
+                                borderColor: 'transparent transparent rgba(25, 118, 210, 0.5) transparent',
+                                pointerEvents: 'none'
+                              }
+                            }}
+                          >
+                            {isEditing ? (
+                              <ClickAwayListener onClickAway={handleInlineEditSave}>
+                                <TextField
+                                  inputRef={cellInputRef}
+                                  value={inlineEditValue}
+                                  onChange={(e) => setInlineEditValue(e.target.value)}
+                                  fullWidth
+                                  variant="standard"
+                                  size="small"
+                                  autoFocus
+                                  InputProps={{
+                                    endAdornment: (
+                                      <InputAdornment position="end">
+                                        <IconButton size="small" onClick={handleInlineEditSave}>
+                                          <CheckIcon fontSize="small" />
+                                        </IconButton>
+                                        <IconButton size="small" onClick={handleInlineEditCancel}>
+                                          <CloseIcon fontSize="small" />
+                                        </IconButton>
+                                      </InputAdornment>
+                                    ),
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      handleInlineEditSave();
+                                    } else if (e.key === 'Escape') {
+                                      handleInlineEditCancel();
+                                    }
+                                  }}
+                                  sx={{ m: 0 }}
+                                />
+                              </ClickAwayListener>
+                            ) : (column.format && value !== null && value !== undefined
+                               ? column.format(value)
+                               : value === null || value === undefined
+                               ? ''
+                               : value)}
                           </TableCell>
                         );
                       })}
@@ -360,9 +534,8 @@ const EditableTable = ({
           onRowsPerPageChange={handleChangeRowsPerPage}
         />
       </Paper>
-      
       {!readonly && (
-        <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
           <Button
             variant="outlined"
             color="error"
@@ -377,11 +550,12 @@ const EditableTable = ({
             Save Draft
           </Button>
           <Button
-            variant="contained"
+            variant="outlined"
             color="primary"
-            onClick={onReviewChanges}
+            startIcon={<FileDownloadIcon />}
+            onClick={handleSaveDraft}
           >
-            Review Changes
+            Save & Export to Excel
           </Button>
         </Box>
       )}

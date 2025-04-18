@@ -27,20 +27,42 @@ namespace RCTableEditor.Server.Services
         {
             try
             {
+                // Log the start of the operation
+                _logger.LogInformation("Starting to save draft changes for batch {BatchId}, change count: {ChangeCount}", 
+                    batchId, changes?.Count ?? 0);
+                
                 using var db = new LiteDatabase(_dbPath);
                 var draftChanges = db.GetCollection<BsonDocument>("draft_changes");
                 
                 // Remove existing changes for this batch
                 draftChanges.DeleteMany(Query.EQ("BatchId", batchId));
+                _logger.LogInformation("Deleted old changes for batch {BatchId}", batchId);
 
                 // Insert new changes
+                if (changes == null || changes.Count == 0)
+                {
+                    _logger.LogInformation("No changes to save for batch {BatchId}", batchId);
+                    return;
+                }
+                
                 foreach (var change in changes)
                 {
+                    // Create value for SessionDataId 
+                    BsonValue sessionDataId;
+                    if (change.SessionDataId.HasValue)
+                    {
+                        sessionDataId = change.SessionDataId.Value;
+                    }
+                    else
+                    {
+                        sessionDataId = BsonValue.Null;
+                    }
+                    
                     var doc = new BsonDocument
                     {
                         ["BatchId"] = batchId,
                         ["ChangeType"] = change.ChangeType,
-                        ["SessionDataId"] = change.SessionDataId,
+                        ["SessionDataId"] = sessionDataId,
                         ["OriginalData"] = change.OriginalData != null 
                             ? System.Text.Json.JsonSerializer.Serialize(change.OriginalData) 
                             : BsonValue.Null,
@@ -55,11 +77,17 @@ namespace RCTableEditor.Server.Services
                     };
                     
                     draftChanges.Insert(doc);
+                    _logger.LogDebug("Inserted change {ChangeType} for SessionDataId {SessionDataId}", 
+                        change.ChangeType, change.SessionDataId);
                 }
+                
+                _logger.LogInformation("Successfully saved {Count} changes for batch {BatchId}", 
+                    changes.Count, batchId);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error saving draft changes for batch {BatchId}", batchId);
+                _logger.LogError(ex, "Error saving draft changes for batch {BatchId}: {Message}", 
+                    batchId, ex.Message);
                 throw;
             }
         }
@@ -79,10 +107,27 @@ namespace RCTableEditor.Server.Services
                 
                 foreach (var doc in docs)
                 {
+                    // Handle SessionDataId properly based on its type in the database
+                    int? sessionDataId = null;
+                    if (doc["SessionDataId"] != BsonValue.Null)
+                    {
+                        if (doc["SessionDataId"].IsInt32)
+                        {
+                            sessionDataId = doc["SessionDataId"].AsInt32;
+                        }
+                        else if (doc["SessionDataId"].IsString)
+                        {
+                            if (int.TryParse(doc["SessionDataId"].AsString, out int parsedId))
+                            {
+                                sessionDataId = parsedId;
+                            }
+                        }
+                    }
+                    
                     var change = new ChangeDTO
                     {
                         ChangeType = doc["ChangeType"].AsString,
-                        SessionDataId = doc["SessionDataId"].AsInt32,
+                        SessionDataId = sessionDataId,
                         Timestamp = doc["Timestamp"].AsDateTime
                     };
                     

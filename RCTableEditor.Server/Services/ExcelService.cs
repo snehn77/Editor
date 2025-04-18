@@ -23,13 +23,10 @@ namespace RCTableEditor.Server.Services
             {
                 using var package = new ExcelPackage();
                 
-                // Create a worksheet for original data
-                var originalSheet = package.Workbook.Worksheets.Add("Original Data");
+                // Create only a single worksheet for the final data with changes applied
+                var finalDataSheet = package.Workbook.Worksheets.Add("Table Data");
                 
-                // Create a worksheet for changes
-                var changesSheet = package.Workbook.Worksheets.Add("Changes");
-                
-                // Headers for both sheets
+                // Headers for the sheet
                 var headers = new[]
                 {
                     "ID", "Process", "Layer", "Defect Type", "Operation List", "Class Type", "Product",
@@ -38,212 +35,105 @@ namespace RCTableEditor.Server.Services
                     "Last Modified", "Last Modified By"
                 };
                 
-                // Add headers to original data sheet
+                // Add headers to the data sheet
                 for (int i = 0; i < headers.Length; i++)
                 {
-                    originalSheet.Cells[1, i + 1].Value = headers[i];
-                    originalSheet.Cells[1, i + 1].Style.Font.Bold = true;
-                    originalSheet.Cells[1, i + 1].Style.Fill.PatternType = ExcelFillStyle.Solid;
-                    originalSheet.Cells[1, i + 1].Style.Fill.BackgroundColor.SetColor(Color.LightGray);
+                    finalDataSheet.Cells[1, i + 1].Value = headers[i];
+                    finalDataSheet.Cells[1, i + 1].Style.Font.Bold = true;
+                    finalDataSheet.Cells[1, i + 1].Style.Fill.PatternType = ExcelFillStyle.Solid;
+                    finalDataSheet.Cells[1, i + 1].Style.Fill.BackgroundColor.SetColor(Color.LightGray);
                 }
                 
-                // Add original data rows
-                int row = 2;
-                foreach (var data in originalData)
+                // Create the data with all changes applied
+                var finalData = new List<TableDataDTO>();
+                foreach (var item in originalData)
                 {
-                    originalSheet.Cells[row, 1].Value = data.SessionDataId;
-                    originalSheet.Cells[row, 2].Value = data.Process;
-                    originalSheet.Cells[row, 3].Value = data.Layer;
-                    originalSheet.Cells[row, 4].Value = data.DefectType;
-                    originalSheet.Cells[row, 5].Value = data.OperationList;
-                    originalSheet.Cells[row, 6].Value = data.ClassType;
-                    originalSheet.Cells[row, 7].Value = data.Product;
-                    originalSheet.Cells[row, 8].Value = data.EntityConfidence;
-                    originalSheet.Cells[row, 9].Value = data.Comments;
-                    originalSheet.Cells[row, 10].Value = data.GenericData1;
-                    originalSheet.Cells[row, 11].Value = data.GenericData2;
-                    originalSheet.Cells[row, 12].Value = data.GenericData3;
-                    originalSheet.Cells[row, 13].Value = data.EdiAttribution;
-                    originalSheet.Cells[row, 14].Value = data.EdiAttributionList;
-                    originalSheet.Cells[row, 15].Value = data.SecurityCode;
-                    originalSheet.Cells[row, 16].Value = data.OriginalId;
-                    originalSheet.Cells[row, 17].Value = data.LastModified;
-                    originalSheet.Cells[row, 18].Value = data.LastModifiedBy;
-                    
-                    row++;
+                    finalData.Add(new TableDataDTO
+                    {
+                        SessionDataId = item.SessionDataId,
+                        BatchId = item.BatchId,
+                        Process = item.Process,
+                        Layer = item.Layer,
+                        DefectType = item.DefectType,
+                        OperationList = item.OperationList,
+                        ClassType = item.ClassType,
+                        Product = item.Product,
+                        EntityConfidence = item.EntityConfidence,
+                        Comments = item.Comments,
+                        GenericData1 = item.GenericData1,
+                        GenericData2 = item.GenericData2,
+                        GenericData3 = item.GenericData3,
+                        EdiAttribution = item.EdiAttribution,
+                        EdiAttributionList = item.EdiAttributionList,
+                        SecurityCode = item.SecurityCode,
+                        OriginalId = item.OriginalId,
+                        LastModified = item.LastModified,
+                        LastModifiedBy = item.LastModifiedBy
+                    });
                 }
                 
-                // Add headers to changes sheet with Change Type column
-                var changeHeaders = new List<string> { "Change Type" };
-                changeHeaders.AddRange(headers);
-                
-                for (int i = 0; i < changeHeaders.Count; i++)
-                {
-                    changesSheet.Cells[1, i + 1].Value = changeHeaders[i];
-                    changesSheet.Cells[1, i + 1].Style.Font.Bold = true;
-                    changesSheet.Cells[1, i + 1].Style.Fill.PatternType = ExcelFillStyle.Solid;
-                    changesSheet.Cells[1, i + 1].Style.Fill.BackgroundColor.SetColor(Color.LightGray);
-                }
-                
-                // Add changes to the changes sheet
-                row = 2;
+                // Apply all changes to the final data
                 foreach (var change in changes)
                 {
-                    // Set change type
-                    changesSheet.Cells[row, 1].Value = change.ChangeType;
-                    
-                    // Set cell color based on change type
-                    var color = Color.White;
                     switch (change.ChangeType)
                     {
                         case "Add":
-                            color = Color.LightGreen;
-                            break;
-                        case "Edit":
-                            color = Color.LightYellow;
-                            break;
-                        case "Remove":
-                            color = Color.LightPink;
-                            break;
-                    }
-                    
-                    changesSheet.Cells[row, 1].Style.Fill.PatternType = ExcelFillStyle.Solid;
-                    changesSheet.Cells[row, 1].Style.Fill.BackgroundColor.SetColor(color);
-                    
-                    // For additions and edits, populate with new data
-                    if (change.ChangeType == "Add" || change.ChangeType == "Edit")
-                    {
-                        if (change.NewData != null)
-                        {
-                            changesSheet.Cells[row, 2].Value = change.NewData.SessionDataId;
-                            changesSheet.Cells[row, 3].Value = change.NewData.Process;
-                            changesSheet.Cells[row, 4].Value = change.NewData.Layer;
-                            changesSheet.Cells[row, 5].Value = change.NewData.DefectType;
-                            changesSheet.Cells[row, 6].Value = change.NewData.OperationList;
-                            changesSheet.Cells[row, 7].Value = change.NewData.ClassType;
-                            changesSheet.Cells[row, 8].Value = change.NewData.Product;
-                            changesSheet.Cells[row, 9].Value = change.NewData.EntityConfidence;
-                            changesSheet.Cells[row, 10].Value = change.NewData.Comments;
-                            changesSheet.Cells[row, 11].Value = change.NewData.GenericData1;
-                            changesSheet.Cells[row, 12].Value = change.NewData.GenericData2;
-                            changesSheet.Cells[row, 13].Value = change.NewData.GenericData3;
-                            changesSheet.Cells[row, 14].Value = change.NewData.EdiAttribution;
-                            changesSheet.Cells[row, 15].Value = change.NewData.EdiAttributionList;
-                            changesSheet.Cells[row, 16].Value = change.NewData.SecurityCode;
-                            changesSheet.Cells[row, 17].Value = change.NewData.OriginalId;
-                            changesSheet.Cells[row, 18].Value = change.NewData.LastModified;
-                            changesSheet.Cells[row, 19].Value = change.NewData.LastModifiedBy;
-                            
-                            // For edits, highlight changed fields
-                            if (change.ChangeType == "Edit" && change.OriginalData != null && change.ModifiedFields != null)
+                            if (change.NewData != null)
                             {
-                                // Map property names to column indices
-                                var propToCol = new Dictionary<string, int>
+                                finalData.Add(change.NewData);
+                            }
+                            break;
+                            
+                        case "Edit":
+                            if (change.NewData != null && change.SessionDataId.HasValue)
+                            {
+                                var sessionIdToEdit = change.SessionDataId.Value;
+                                var index = finalData.FindIndex(d => d.SessionDataId == sessionIdToEdit);
+                                if (index >= 0)
                                 {
-                                    { "Process", 3 },
-                                    { "Layer", 4 },
-                                    { "DefectType", 5 },
-                                    { "OperationList", 6 },
-                                    { "ClassType", 7 },
-                                    { "Product", 8 },
-                                    { "EntityConfidence", 9 },
-                                    { "Comments", 10 },
-                                    { "GenericData1", 11 },
-                                    { "GenericData2", 12 },
-                                    { "GenericData3", 13 },
-                                    { "EdiAttribution", 14 },
-                                    { "EdiAttributionList", 15 },
-                                    { "SecurityCode", 16 }
-                                };
-                                
-                                foreach (var field in change.ModifiedFields)
-                                {
-                                    if (propToCol.TryGetValue(field, out int col))
-                                    {
-                                        changesSheet.Cells[row, col].Style.Fill.PatternType = ExcelFillStyle.Solid;
-                                        changesSheet.Cells[row, col].Style.Fill.BackgroundColor.SetColor(Color.LightYellow);
-                                        changesSheet.Cells[row, col].Style.Font.Bold = true;
-                                    }
+                                    finalData[index] = change.NewData;
                                 }
                             }
-                        }
+                            break;
+                            
+                        case "Remove":
+                            if (change.SessionDataId.HasValue)
+                            {
+                                var sessionIdToRemove = change.SessionDataId.Value;
+                                finalData.RemoveAll(d => d.SessionDataId == sessionIdToRemove);
+                            }
+                            break;
                     }
-                    // For removals, populate with original data
-                    else if (change.ChangeType == "Remove" && change.OriginalData != null)
-                    {
-                        changesSheet.Cells[row, 2].Value = change.OriginalData.SessionDataId;
-                        changesSheet.Cells[row, 3].Value = change.OriginalData.Process;
-                        changesSheet.Cells[row, 4].Value = change.OriginalData.Layer;
-                        changesSheet.Cells[row, 5].Value = change.OriginalData.DefectType;
-                        changesSheet.Cells[row, 6].Value = change.OriginalData.OperationList;
-                        changesSheet.Cells[row, 7].Value = change.OriginalData.ClassType;
-                        changesSheet.Cells[row, 8].Value = change.OriginalData.Product;
-                        changesSheet.Cells[row, 9].Value = change.OriginalData.EntityConfidence;
-                        changesSheet.Cells[row, 10].Value = change.OriginalData.Comments;
-                        changesSheet.Cells[row, 11].Value = change.OriginalData.GenericData1;
-                        changesSheet.Cells[row, 12].Value = change.OriginalData.GenericData2;
-                        changesSheet.Cells[row, 13].Value = change.OriginalData.GenericData3;
-                        changesSheet.Cells[row, 14].Value = change.OriginalData.EdiAttribution;
-                        changesSheet.Cells[row, 15].Value = change.OriginalData.EdiAttributionList;
-                        changesSheet.Cells[row, 16].Value = change.OriginalData.SecurityCode;
-                        changesSheet.Cells[row, 17].Value = change.OriginalData.OriginalId;
-                        changesSheet.Cells[row, 18].Value = change.OriginalData.LastModified;
-                        changesSheet.Cells[row, 19].Value = change.OriginalData.LastModifiedBy;
-                        
-                        // Highlight entire row for removals
-                        for (int i = 2; i <= 19; i++)
-                        {
-                            changesSheet.Cells[row, i].Style.Fill.PatternType = ExcelFillStyle.Solid;
-                            changesSheet.Cells[row, i].Style.Fill.BackgroundColor.SetColor(Color.LightPink);
-                        }
-                    }
+                }
+                
+                // Add data rows
+                int row = 2;
+                foreach (var data in finalData)
+                {
+                    finalDataSheet.Cells[row, 1].Value = data.SessionDataId;
+                    finalDataSheet.Cells[row, 2].Value = data.Process;
+                    finalDataSheet.Cells[row, 3].Value = data.Layer;
+                    finalDataSheet.Cells[row, 4].Value = data.DefectType;
+                    finalDataSheet.Cells[row, 5].Value = data.OperationList;
+                    finalDataSheet.Cells[row, 6].Value = data.ClassType;
+                    finalDataSheet.Cells[row, 7].Value = data.Product;
+                    finalDataSheet.Cells[row, 8].Value = data.EntityConfidence;
+                    finalDataSheet.Cells[row, 9].Value = data.Comments;
+                    finalDataSheet.Cells[row, 10].Value = data.GenericData1;
+                    finalDataSheet.Cells[row, 11].Value = data.GenericData2;
+                    finalDataSheet.Cells[row, 12].Value = data.GenericData3;
+                    finalDataSheet.Cells[row, 13].Value = data.EdiAttribution;
+                    finalDataSheet.Cells[row, 14].Value = data.EdiAttributionList;
+                    finalDataSheet.Cells[row, 15].Value = data.SecurityCode;
+                    finalDataSheet.Cells[row, 16].Value = data.OriginalId;
+                    finalDataSheet.Cells[row, 17].Value = data.LastModified;
+                    finalDataSheet.Cells[row, 18].Value = data.LastModifiedBy;
                     
                     row++;
                 }
                 
-                // Add summary information to a new sheet
-                var summarySheet = package.Workbook.Worksheets.Add("Summary");
-                summarySheet.Cells[1, 1].Value = "RC Table Editor - Change Summary";
-                summarySheet.Cells[1, 1].Style.Font.Bold = true;
-                summarySheet.Cells[1, 1].Style.Font.Size = 14;
-                
-                summarySheet.Cells[3, 1].Value = "Process:";
-                summarySheet.Cells[3, 2].Value = process;
-                summarySheet.Cells[4, 1].Value = "Layer:";
-                summarySheet.Cells[4, 2].Value = layer;
-                summarySheet.Cells[5, 1].Value = "Generated Date:";
-                summarySheet.Cells[5, 2].Value = DateTime.Now;
-                
-                int addCount = changes.Count(c => c.ChangeType == "Add");
-                int editCount = changes.Count(c => c.ChangeType == "Edit");
-                int removeCount = changes.Count(c => c.ChangeType == "Remove");
-                
-                summarySheet.Cells[7, 1].Value = "Change Statistics:";
-                summarySheet.Cells[7, 1].Style.Font.Bold = true;
-                
-                summarySheet.Cells[8, 1].Value = "Additions:";
-                summarySheet.Cells[8, 2].Value = addCount;
-                summarySheet.Cells[8, 2].Style.Fill.PatternType = ExcelFillStyle.Solid;
-                summarySheet.Cells[8, 2].Style.Fill.BackgroundColor.SetColor(Color.LightGreen);
-                
-                summarySheet.Cells[9, 1].Value = "Modifications:";
-                summarySheet.Cells[9, 2].Value = editCount;
-                summarySheet.Cells[9, 2].Style.Fill.PatternType = ExcelFillStyle.Solid;
-                summarySheet.Cells[9, 2].Style.Fill.BackgroundColor.SetColor(Color.LightYellow);
-                
-                summarySheet.Cells[10, 1].Value = "Removals:";
-                summarySheet.Cells[10, 2].Value = removeCount;
-                summarySheet.Cells[10, 2].Style.Fill.PatternType = ExcelFillStyle.Solid;
-                summarySheet.Cells[10, 2].Style.Fill.BackgroundColor.SetColor(Color.LightPink);
-                
-                summarySheet.Cells[11, 1].Value = "Total Changes:";
-                summarySheet.Cells[11, 2].Value = changes.Count;
-                summarySheet.Cells[11, 2].Style.Font.Bold = true;
-                
-                // Auto-fit columns
-                originalSheet.Cells[originalSheet.Dimension.Address].AutoFitColumns();
-                changesSheet.Cells[changesSheet.Dimension.Address].AutoFitColumns();
-                summarySheet.Cells[summarySheet.Dimension.Address].AutoFitColumns();
+                // Auto-size columns
+                finalDataSheet.Cells.AutoFitColumns();
                 
                 return package.GetAsByteArray();
             }

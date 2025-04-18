@@ -486,6 +486,7 @@ const TableEditor = () => {
                     onDiscardChanges={handleDiscardChanges}
                     onReviewChanges={handleReviewChanges}
                     changes={changes}
+                    batchId={batchId}
                     sx={{
                         '& .MuiDataGrid-columnHeaders': {
                             bgcolor: 'grey.50',

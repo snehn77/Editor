@@ -299,10 +299,10 @@ namespace RCTableEditor.Server.Controllers
                 // Get draft changes
                 var draftChanges = _draftStorageService.GetDraftChanges(batchId);
 
-                // Generate Excel file with original data only (no changes)
+                // Generate Excel file with original data AND applied changes
                 var excelData = _excelService.GenerateExcelFile(
                     tableDataDTOs, 
-                    new List<ChangeDTO>(), 
+                    draftChanges, // Pass the actual draft changes
                     sessionData.First().Process, 
                     sessionData.First().Layer);
 
