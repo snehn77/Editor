@@ -47,6 +47,11 @@ export default defineConfig({
     },
     server: {
         proxy: {
+            '^/api': {
+                target,
+                secure: false,
+                rewrite: (path) => path.replace(/^\/api/, '/api')
+            },
             '^/weatherforecast': {
                 target,
                 secure: false

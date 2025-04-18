@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("RCTableEditor.Server")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2658108373a1a2ceb112fcd0aabfcc3952d9487b")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c4245e960a27706b7c3bde9032da90d95c9cae1f")]
 [assembly: System.Reflection.AssemblyProductAttribute("RCTableEditor.Server")]
 [assembly: System.Reflection.AssemblyTitleAttribute("RCTableEditor.Server")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

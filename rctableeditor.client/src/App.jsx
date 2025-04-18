@@ -9,7 +9,7 @@ import MainLayout from './components/Layout/MainLayout';
 import Dashboard from './pages/Dashboard';
 import FilterSelection from './pages/FilterSelection';
 import ImportSession from './pages/ImportSession';
-import TableEditor from './pages/TableEditor/TableEditor';
+import TableEditor from './pages/TableEditor';
 import ReviewChanges from './pages/ReviewChanges/ReviewChanges';
 import SubmitChanges from './pages/SubmitChanges/SubmitChanges';
 import ChangeHistory from './pages/ChangeHistory/ChangeHistory';

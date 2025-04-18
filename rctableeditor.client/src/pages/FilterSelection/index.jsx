@@ -8,12 +8,14 @@ import {
     Chip,
     FormHelperText,
     IconButton,
-    InputAdornment
+    InputAdornment,
+    CircularProgress
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useNavigate } from 'react-router-dom';
 import { useBatch } from '../../context/BatchContext';
+import { tableService } from '../../services/tableService';
 import {
     FilterContainer,
     SectionHeader,
@@ -32,6 +34,7 @@ const FilterSelection = () => {
     const [layers, setLayers] = useState(['']);
     const [operations, setOperations] = useState(['']);
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
 
     // Form validation state
     const [formErrors, setFormErrors] = useState({
@@ -110,19 +113,51 @@ const FilterSelection = () => {
         if (!validateForm()) {
             return;
         }
+        
         setError('');
+        setLoading(true);
+        
         try {
-            // Simulate batch creation and navigation
+            // Get non-empty values
+            const processValue = process.trim();
+            const layerValues = layers.filter(l => l.trim());
+            const operationValues = operations.filter(o => o.trim());
+            
+            // Call API to fetch table data
+            const tableData = await tableService.queryTableData(
+                processValue,
+                // Send all layers as an array
+                layerValues,
+                // Send all operations as an array (can be empty)
+                operationValues
+            );
+            
+            // Extract data from the API response
+            const batchId = tableData.batchId || Date.now().toString();
+            const recordCount = tableData.recordCount || 0;
+            
+            // Get the actual table data from the response
+            const actualTableData = tableData.tableData || [];
+            
+            console.log('Received data:', { batchId, recordCount, dataCount: actualTableData.length });
+            
+            // Create batch with the fetched data
             setActiveBatch({
-                batchId: Date.now().toString(),
-                process: process.trim(),
-                layer: layers.filter(l => l.trim()),
-                operation: operations.filter(o => o.trim()),
-                source: 'ManualInput'
+                batchId: batchId,
+                process: processValue,
+                layer: layerValues,
+                operation: operationValues,
+                source: 'ManualInput',
+                data: actualTableData, // Use the actual table data array
+                recordCount: recordCount
             });
+            
+            // Navigate to editor with the data
             navigate('/editor');
         } catch (e) {
-            setError('Failed to create session.', e);
+            console.error('Error fetching data:', e);
+            setError('Failed to fetch data from server. Please check your inputs and try again.');
+            setLoading(false);
         }
     };
 
@@ -265,8 +300,14 @@ const FilterSelection = () => {
                         variant="contained"
                         size="large"
                         onClick={handleLoadData}
+                        disabled={loading}
                     >
-                        Load Data
+                        {loading ? (
+                            <>
+                                <CircularProgress size={24} color="inherit" sx={{ mr: 1 }} />
+                                Loading...
+                            </>
+                        ) : 'Load Data'}
                     </Button>
                 </ActionContainer>
             </FilterContainer>

@@ -26,8 +26,11 @@ namespace RCTableEditor.Server.DTOs
     public class TableDataQueryDTO
     {
         public string Process { get; set; } = string.Empty;
-        public string Layer { get; set; } = string.Empty;
-        public string? Operation { get; set; }
+        // Updated to accept a list of layers
+        public List<string> Layers { get; set; } = new List<string>();
+
+        // Updated to accept a list of operations
+        public List<string> Operations { get; set; } = new List<string>();
     }
 
     public class TableDataImportDTO

@@ -23,11 +23,12 @@ export const tableService = {
   },
 
   // Table data endpoints
-  queryTableData: async (process, layer, operation) => {
-    const response = await api.post('/tabledata/query', {
-      process,
-      layer,
-      operation
+  queryTableData: async (process, layers, operations) => {
+    // Make sure to handle arrays properly
+    const response = await api.post('/TableData/query', {
+      Process: process,
+      Layers: layers, // Send all layers as an array
+      Operations: operations // Send all operations as an array
     });
     return response.data;
   },

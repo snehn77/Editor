@@ -78,9 +78,9 @@ namespace RCTableEditor.Server.Controllers
         {
             try
             {
-                if (string.IsNullOrEmpty(query.Process) || string.IsNullOrEmpty(query.Layer))
+                if (string.IsNullOrEmpty(query.Process) || query.Layers == null || query.Layers.Count == 0)
                 {
-                    return BadRequest("Process and Layer are required");
+                    return BadRequest("Process and at least one Layer are required");
                 }
 
                 // Generate a new batch ID
@@ -90,17 +90,26 @@ namespace RCTableEditor.Server.Controllers
                 // For now, we'll create some sample data
                 var sampleData = new List<SessionData>();
                 
-                // Generate 10 sample records
-                for (int i = 1; i <= 10; i++)
+                // Get the first layer for the sample data
+                // In a real implementation, you would handle all layers
+                string primaryLayer = query.Layers[0];
+                
+                // Join operations for display if any exist
+                string operationList = query.Operations != null && query.Operations.Count > 0 
+                    ? string.Join("/", query.Operations) 
+                    : "128853/198166";
+                
+                // Generate 100 sample records
+                for (int i = 1; i <= 100; i++)
                 {
                     sampleData.Add(new SessionData
                     {
                         BatchId = batchId,
                         Source = "ExternalDB",
-                        Process = query.Process,
-                        Layer = query.Layer,
+                        Process = "1274",
+                        Layer = primaryLayer, // Using the first layer
                         DefectType = $"DEFECT_{i}",
-                        OperationList = query.Operation ?? "128853/198166",
+                        OperationList = operationList,
                         ClassType = $"CLASS_{i % 3 + 1}",
                         Product = $"PROD_{i % 4 + 1}",
                         EntityConfidence = i % 5 + 1,
@@ -118,25 +127,54 @@ namespace RCTableEditor.Server.Controllers
                     });
                 }
 
-                // Save to database
+                // Add sample data to database
                 await _context.SessionData.AddRangeAsync(sampleData);
                 await _context.SaveChangesAsync();
 
                 // Save batch metadata
                 _draftStorageService.SaveBatchMetadata(
-                    batchId, 
-                    "ExternalDB", 
-                    null, 
-                    query.Process, 
-                    query.Layer, 
-                    query.Operation ?? "", 
+                    batchId,
+                    "ExternalDB",
+                    null,
+                    query.Process,
+                    string.Join(", ", query.Layers), // Join all layers for storage
+                    operationList,
                     User.Identity?.Name ?? "Anonymous");
 
-                return Ok(new { BatchId = batchId, RecordCount = sampleData.Count });
+                // Map data to DTOs for returning to the client
+                var tableDataDTOs = sampleData.Select(s => new TableDataDTO
+                {
+                    SessionDataId = s.SessionDataId,
+                    BatchId = s.BatchId,
+                    Process = s.Process,
+                    Layer = s.Layer,
+                    DefectType = s.DefectType,
+                    OperationList = s.OperationList,
+                    ClassType = s.ClassType,
+                    Product = s.Product,
+                    EntityConfidence = s.EntityConfidence,
+                    Comments = s.Comments,
+                    GenericData1 = s.GenericData1,
+                    GenericData2 = s.GenericData2,
+                    GenericData3 = s.GenericData3,
+                    EdiAttribution = s.EdiAttribution,
+                    EdiAttributionList = s.EdiAttributionList,
+                    SecurityCode = s.SecurityCode,
+                    OriginalId = s.OriginalId,
+                    LastModified = s.LastModified,
+                    LastModifiedBy = s.LastModifiedBy
+                }).ToList();
+
+                // Return the actual data along with batch info
+                return Ok(new { 
+                    BatchId = batchId, 
+                    RecordCount = sampleData.Count,
+                    TableData = tableDataDTOs
+                });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error querying table data for Process {Process}, Layer {Layer}", query.Process, query.Layer);
+                _logger.LogError(ex, "Error querying table data for Process {Process}, Layer {Layer}", query.Process, query.Layers);
                 return StatusCode(500, "Internal server error");
             }
         }
