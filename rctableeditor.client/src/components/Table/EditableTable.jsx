@@ -116,31 +116,41 @@ const EditableTable = ({
     { id: 'ediAttribution', label: 'EDI Attribution', minWidth: 120 },
     { id: 'ediAttributionList', label: 'EDI Attribution List', minWidth: 150 },
     { id: 'securityCode', label: 'Security Code', minWidth: 120 },
-    { id: 'lastModified', label: 'Last Modified', minWidth: 150, format: (value) => value && new Date(value).toLocaleString() },
-    { id: 'lastModifiedBy', label: 'Last Modified By', minWidth: 150 },
+    { id: 'lastModified', label: 'Last Modified', minWidth: 150 }
   ], []);
+
+  // Format cell values
+  const format = (value) => {
+    return value !== null && value !== undefined ? value.toString() : '';
+  };
 
   // Check if a row has been modified
   const isRowModified = (row) => {
-    return changes.some(
-      change => 
-        (change.changeType === 'Edit' && change.sessionDataId === row.sessionDataId) ||
-        (change.changeType === 'Remove' && change.sessionDataId === row.sessionDataId) ||
-        (change.changeType === 'Add' && change.newData && change.newData.sessionDataId === row.sessionDataId)
+    if (!changes || changes.length === 0) return false;
+    
+    return changes.some(change => 
+      change.changeType === 'Edit' && 
+      change.sessionDataId === row.sessionDataId
     );
   };
 
   // Check if a row is new (added in this session)
   const isRowAdded = (row) => {
-    return changes.some(
-      change => change.changeType === 'Add' && change.newData && change.newData.sessionDataId === row.sessionDataId
+    if (!changes || changes.length === 0) return false;
+    
+    return changes.some(change => 
+      change.changeType === 'Add' && 
+      change.newData?.sessionDataId === row.sessionDataId
     );
   };
 
   // Check if a row has been marked for deletion
   const isRowDeleted = (row) => {
-    return changes.some(
-      change => change.changeType === 'Remove' && change.sessionDataId === row.sessionDataId
+    if (!changes || changes.length === 0) return false;
+    
+    return changes.some(change => 
+      change.changeType === 'Remove' && 
+      change.sessionDataId === row.sessionDataId
     );
   };
 
@@ -164,30 +174,33 @@ const EditableTable = ({
   // Add new row handler
   const handleAddRow = () => {
     const newRow = {
-      sessionDataId: `temp-${uuidv4()}`, // Temporary ID for new row
-      batchId: data && data.length > 0 ? data[0].batchId : '',
-      process: data && data.length > 0 ? data[0].process : '',
-      layer: data && data.length > 0 ? data[0].layer : '',
+      sessionDataId: uuidv4(), // Generate a new unique ID
+      process: '',
+      layer: '',
       defectType: '',
-      operationList: data && data.length > 0 ? data[0].operationList : '',
+      operationList: '',
       classType: '',
       product: '',
-      entityConfidence: null,
+      entityConfidence: '',
       comments: '',
       genericData1: '',
       genericData2: '',
       genericData3: '',
       ediAttribution: '',
       ediAttributionList: '',
-      securityCode: null,
-      originalId: null,
+      securityCode: '',
       lastModified: new Date().toISOString(),
-      lastModifiedBy: 'Current User', // This would be replaced with the actual user
+      lastModifiedBy: 'Current User' // This should be the current user
     };
     
-    setCurrentRow(null);
-    setEditedRow(newRow);
-    setEditDialogOpen(true);
+    // Add to changes
+    const newChange = {
+      changeType: 'Add',
+      newData: newRow,
+      originalData: null // No original data for a new row
+    };
+    
+    onSaveChanges([...changes, newChange]);
   };
 
   // Delete row handler
@@ -198,56 +211,61 @@ const EditableTable = ({
 
   // Confirm delete handler
   const handleConfirmDelete = () => {
-    const change = {
+    // Add to changes
+    const newChange = {
       changeType: 'Remove',
       sessionDataId: rowToDelete.sessionDataId,
-      originalData: rowToDelete,
-      timestamp: new Date().toISOString()
+      originalData: rowToDelete
     };
     
-    onSaveChanges([change]);
+    onSaveChanges([...changes, newChange]);
     setDeleteConfirmOpen(false);
+    setRowToDelete(null);
   };
 
   // Save edited row handler
   const handleSaveEdit = () => {
-    let change;
+    // If it's a newly added row that's being edited, update the 'Add' change instead of creating an 'Edit' change
+    const isNewlyAdded = changes.some(change => 
+      change.changeType === 'Add' && 
+      change.newData?.sessionDataId === currentRow.sessionDataId
+    );
     
-    if (currentRow) {
-      // Editing existing row
-      const modifiedFields = [];
-      
-      // Determine which fields have been modified
-      Object.keys(editedRow).forEach(key => {
-        if (JSON.stringify(editedRow[key]) !== JSON.stringify(currentRow[key])) {
-          modifiedFields.push(key);
+    if (isNewlyAdded) {
+      const updatedChanges = changes.map(change => {
+        if (change.changeType === 'Add' && change.newData?.sessionDataId === currentRow.sessionDataId) {
+          return {
+            ...change,
+            newData: {
+              ...editedRow,
+              lastModified: new Date().toISOString(),
+              lastModifiedBy: 'Current User' // This should be the current user
+            }
+          };
         }
+        return change;
       });
       
-      if (modifiedFields.length > 0) {
-        change = {
-          changeType: 'Edit',
-          sessionDataId: currentRow.sessionDataId,
-          originalData: currentRow,
-          newData: editedRow,
-          modifiedFields: modifiedFields,
-          timestamp: new Date().toISOString()
-        };
-      }
+      onSaveChanges(updatedChanges);
     } else {
-      // Adding new row
-      change = {
-        changeType: 'Add',
-        newData: editedRow,
-        timestamp: new Date().toISOString()
+      // Regular edit for existing row
+      const newChange = {
+        changeType: 'Edit',
+        sessionDataId: currentRow.sessionDataId,
+        originalData: currentRow,
+        newData: {
+          ...editedRow,
+          lastModified: new Date().toISOString(),
+          lastModifiedBy: 'Current User' // This should be the current user
+        }
       };
-    }
-    
-    if (change) {
-      onSaveChanges([change]);
+      
+      onSaveChanges([...changes, newChange]);
     }
     
     setEditDialogOpen(false);
+    setCurrentRow(null);
+    setEditedRow({});
   };
 
   // Edit dialog field change handler
@@ -260,21 +278,30 @@ const EditableTable = ({
 
   // Handle cell click for inline editing
   const handleCellClick = (row, columnId, value) => {
-    // Don't allow editing of these meta fields
-    if (columnId === 'lastModified' || columnId === 'lastModifiedBy' || readonly) {
+    // Only allow editing if not in readonly mode and not a deleted row
+    if (readonly || isRowDeleted(row)) {
       return;
     }
     
-    // Don't allow editing deleted rows
-    if (isRowDeleted(row)) {
+    // Don't allow editing of lastModified or lastModifiedBy fields
+    if (columnId === 'lastModified' || columnId === 'lastModifiedBy') {
       return;
     }
     
-    // Initialize cell editing
-    setInlineEditCell({ rowId: row.sessionDataId, columnId });
-    setInlineEditValue(value !== undefined && value !== null ? value.toString() : '');
+    // Check if this is a double-click or just a click
+    if (inlineEditCell) {
+      // Already editing, ignore
+      return;
+    }
     
-    // Focus the input field after a small delay to ensure it's rendered
+    setInlineEditCell({
+      rowId: row.sessionDataId,
+      columnId
+    });
+    
+    setInlineEditValue(value !== null && value !== undefined ? value.toString() : '');
+    
+    // Ref will be set after render, need to focus in useEffect
     setTimeout(() => {
       if (cellInputRef.current) {
         cellInputRef.current.focus();
@@ -286,25 +313,45 @@ const EditableTable = ({
   const handleInlineEditSave = () => {
     if (!inlineEditCell) return;
     
-    // Find the row being edited
-    const rowIndex = rows.findIndex(r => r.sessionDataId === inlineEditCell.rowId);
-    if (rowIndex === -1) return;
+    const { rowId, columnId } = inlineEditCell;
+    const row = rows.find(r => r.sessionDataId === rowId);
     
-    const row = rows[rowIndex];
+    if (!row) {
+      setInlineEditCell(null);
+      setInlineEditValue('');
+      return;
+    }
     
-    // Create a copy of the row with the updated field
-    const updatedRow = { ...row };
-    updatedRow[inlineEditCell.columnId] = inlineEditValue;
+    // If the value hasn't changed, don't create a change record
+    if (row[columnId] === inlineEditValue) {
+      setInlineEditCell(null);
+      setInlineEditValue('');
+      return;
+    }
     
-    // Save changes
-    onSaveChanges([{
+    // Update the row with new value
+    const updatedRow = {
+      ...row,
+      [columnId]: inlineEditValue,
+      lastModified: new Date().toISOString(),
+      lastModifiedBy: 'Current User' // This should be the current user
+    };
+    
+    // Add to changes as an edit
+    handleEditRow(row); // Open the edit dialog with the current row
+    handleEditFieldChange(columnId, inlineEditValue); // Update the edited field
+    setEditDialogOpen(false); // Close the dialog
+    
+    // Update changes
+    const newChange = {
       changeType: 'Edit',
-      sessionDataId: row.sessionDataId,
+      sessionDataId: rowId,
       originalData: row,
       newData: updatedRow
-    }]);
+    };
     
-    // Clear inline editing state
+    onSaveChanges([...changes, newChange]);
+    
     setInlineEditCell(null);
     setInlineEditValue('');
   };
@@ -314,41 +361,44 @@ const EditableTable = ({
     setInlineEditCell(null);
     setInlineEditValue('');
   };
-  
+
   // Handle save to Excel and navigate to dashboard
   const handleSaveDraft = async () => {
     try {
-      // First save any pending changes
-      if (inlineEditCell) {
-        await handleInlineEditSave();
-      }
+      // First save draft changes
+      console.log('Saving draft changes and exporting');
+      console.log('Batch ID:', batchId);
+      console.log('Changes:', changes);
       
-      // Save any draft changes first (if needed)
-      if (changes.length > 0 && onSaveChanges) {
-        await onSaveChanges(changes);
-      }
-      
-      // Export data to Excel
-      if (batchId) {
-        console.log('Exporting data for batch:', batchId);
-        
-        // Show loading or notification here if needed
-        
-        // Export to Excel using the table service
-        const result = await tableService.exportTableData(batchId);
-        
-        if (result) {
-          console.log('Excel export successful');
+      // If there are changes, save them first
+      if (changes.length > 0) {
+        try {
+          await tableService.saveDraftChanges(batchId, changes);
+          console.log('Draft changes saved successfully');
+        } catch (saveError) {
+          console.error('Error saving draft changes:', saveError);
+          console.log('Error details:', saveError.response?.data);
           
-          // Navigate back to dashboard after a brief delay to ensure download starts
-          setTimeout(() => {
-            navigate('/');
-          }, 1500);
+          // Display detailed error but continue with export attempt
+          alert(`Warning: There was an issue saving your changes: ${saveError.message}\n\nAttempting to export anyway.`);
         }
-      } else {
-        console.error('No batch ID provided for export');
-        // Could show an error message to the user here
       }
+      
+      // Then export the data
+      const response = await tableService.exportTableData(batchId);
+      console.log('Export response received');
+      
+      // Create a download link for the Excel file
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `table_data_${new Date().toISOString().split('T')[0]}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      // Navigate back to dashboard after successful export
+      // navigate('/');
     } catch (error) {
       console.error('Error exporting Excel:', error);
       // Could show an error message to the user here
@@ -358,29 +408,83 @@ const EditableTable = ({
 
   return (
     <Box sx={{ width: '100%' }}>
-      <Paper sx={{ width: '100%', overflow: 'hidden', mb: 2 }}>
+      {/* Action Buttons */}
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2, gap: 2 }}>
+        {!readonly && (
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<AddIcon />}
+            onClick={handleAddRow}
+          >
+            Add Row
+          </Button>
+        )}
+        {!readonly && (
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<FileDownloadIcon />}
+            onClick={handleSaveDraft}
+          >
+            Save & Export to Excel
+          </Button>
+        )}
+        
+        {!readonly && (
+          <Button
+            variant="outlined"
+            color="primary"
+            onClick={onReviewChanges}
+          >
+            Review Changes
+            {changes.length > 0 && (
+              <Chip 
+                size="small" 
+                label={changes.length} 
+                color="primary" 
+                sx={{ ml: 1, height: 20, fontSize: '0.75rem' }} 
+              />
+            )}
+          </Button>
+        )}
+      </Box>
+      
+      {/* Table Container with proper overflow handling */}
+      <Box sx={{ 
+        width: '100%', 
+        overflow: 'auto',
+        '&::-webkit-scrollbar': {
+          height: '8px',
+          width: '8px',
+        },
+        '&::-webkit-scrollbar-thumb': {
+          backgroundColor: 'rgba(0,0,0,0.2)',
+          borderRadius: '4px',
+        },
+      }}>
         <TableContainer 
+          component={Paper} 
           sx={{ 
-            maxHeight: 500,
-            '& .MuiTableHead-root': {
-              position: 'sticky',
-              top: 0,
-              zIndex: 2
-            },
-            '& .MuiTableCell-stickyHeader': {
-              backgroundColor: '#f5f5f5',
-              boxShadow: '0 2px 2px -1px rgba(0,0,0,0.1)'
-            }
+            maxHeight: 600, 
+            width: '100%',
+            boxShadow: 'none', 
+            border: '1px solid rgba(224, 224, 224, 1)',
+            borderRadius: 1
           }}
         >
-          <Table stickyHeader>
+          <Table stickyHeader aria-label="sticky table" size="small">
             <TableHead>
               <TableRow>
                 {!readonly && (
-                  <TableCell
-                    key="actions"
-                    align="center"
-                    style={{ minWidth: 100 }}
+                  <TableCell 
+                    sx={{ 
+                      minWidth: 100, 
+                      position: 'sticky', 
+                      left: 0, 
+                      zIndex: 3,
+                      backgroundColor: '#f5f5f5'
+                    }}
                   >
                     Actions
                   </TableCell>
@@ -388,8 +492,10 @@ const EditableTable = ({
                 {columns.map((column) => (
                   <TableCell
                     key={column.id}
-                    align="left"
-                    style={{ minWidth: column.minWidth }}
+                    style={{ 
+                      minWidth: column.minWidth,
+                      backgroundColor: '#f5f5f5'
+                    }}
                   >
                     {column.label}
                   </TableCell>
@@ -399,34 +505,37 @@ const EditableTable = ({
             <TableBody>
               {rows
                 .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                .map((row, index) => {
-                  const isModified = isRowModified(row);
-                  const isAdded = isRowAdded(row);
+                .map((row) => {
+                  // check if row is marked for deletion - to apply style
                   const isDeleted = isRowDeleted(row);
-                  
-                  // Skip deleted rows in view mode
-                  if (readonly && isDeleted) {
-                    return null;
-                  }
+                  const isAdded = isRowAdded(row);
+                  const isModified = isRowModified(row);
                   
                   return (
                     <TableRow 
                       hover 
                       role="checkbox" 
                       tabIndex={-1} 
-                      key={row.sessionDataId || index}
-                      sx={{
-                        backgroundColor: isDeleted 
-                          ? 'rgba(244, 67, 54, 0.1)' 
-                          : isAdded 
-                          ? 'rgba(76, 175, 80, 0.1)' 
-                          : isModified 
-                          ? 'rgba(255, 152, 0, 0.1)' 
-                          : 'inherit'
+                      key={row.sessionDataId}
+                      sx={{ 
+                        opacity: isDeleted ? 0.5 : 1,
+                        bgcolor: isAdded ? 'rgba(46, 125, 50, 0.08)' : 
+                                isModified ? 'rgba(255, 193, 7, 0.08)' : 'inherit',
+                        textDecoration: isDeleted ? 'line-through' : 'none'
                       }}
                     >
                       {!readonly && (
-                        <TableCell align="center">
+                        <TableCell 
+                          align="center"
+                          sx={{ 
+                            position: 'sticky', 
+                            left: 0, 
+                            zIndex: 2,
+                            backgroundColor: isAdded ? 'rgba(46, 125, 50, 0.08)' : 
+                                      isModified ? 'rgba(255, 193, 7, 0.08)' : 'white',
+                            opacity: isDeleted ? 0.5 : 1
+                          }}
+                        >
                           <IconButton 
                             size="small" 
                             onClick={() => handleEditRow(row)}
@@ -444,6 +553,7 @@ const EditableTable = ({
                           </IconButton>
                         </TableCell>
                       )}
+                      
                       {columns.map((column) => {
                         const value = row[column.id];
                         const isEditing = inlineEditCell && 
@@ -456,8 +566,7 @@ const EditableTable = ({
                             align="left"
                             onClick={() => handleCellClick(row, column.id, value)}
                             className={`
-                              ${isDeleted ? 'deleted' : ''} 
-                              ${isModified && column.id !== 'lastModified' && column.id !== 'lastModifiedBy' ? 'modified' : ''}
+                              ${isDeleted ? 'deleted-cell' : ''}
                               ${isEditing ? 'editing' : ''}
                               ${column.id !== 'lastModified' && column.id !== 'lastModifiedBy' && !readonly && !isDeleted ? 'editable-cell' : ''}
                             `}
@@ -467,12 +576,13 @@ const EditableTable = ({
                               '&.editable-cell:hover::after': {
                                 content: '""',
                                 position: 'absolute',
-                                bottom: '0',
-                                right: '0',
-                                width: '0',
-                                height: '0',
+                                bottom: 0,
+                                left: '50%',
+                                transform: 'translateX(-50%)',
+                                width: 0,
+                                height: 0,
                                 borderStyle: 'solid',
-                                borderWidth: '0 0 8px 8px',
+                                borderWidth: '0 4px 4px 4px',
                                 borderColor: 'transparent transparent rgba(25, 118, 210, 0.5) transparent',
                                 pointerEvents: 'none'
                               }
@@ -484,17 +594,25 @@ const EditableTable = ({
                                   inputRef={cellInputRef}
                                   value={inlineEditValue}
                                   onChange={(e) => setInlineEditValue(e.target.value)}
-                                  fullWidth
-                                  variant="standard"
+                                  variant="outlined"
                                   size="small"
+                                  fullWidth
                                   autoFocus
                                   InputProps={{
                                     endAdornment: (
                                       <InputAdornment position="end">
-                                        <IconButton size="small" onClick={handleInlineEditSave}>
+                                        <IconButton
+                                          edge="end"
+                                          size="small"
+                                          onClick={handleInlineEditSave}
+                                        >
                                           <CheckIcon fontSize="small" />
                                         </IconButton>
-                                        <IconButton size="small" onClick={handleInlineEditCancel}>
+                                        <IconButton
+                                          edge="end"
+                                          size="small"
+                                          onClick={handleInlineEditCancel}
+                                        >
                                           <CloseIcon fontSize="small" />
                                         </IconButton>
                                       </InputAdornment>
@@ -510,11 +628,11 @@ const EditableTable = ({
                                   sx={{ m: 0 }}
                                 />
                               </ClickAwayListener>
-                            ) : (column.format && value !== null && value !== undefined
-                               ? column.format(value)
-                               : value === null || value === undefined
-                               ? ''
-                               : value)}
+                            ) : (
+                              <>
+                                {value !== null && value !== undefined ? format(value) : '—'}
+                              </>
+                            )}
                           </TableCell>
                         );
                       })}
@@ -524,18 +642,22 @@ const EditableTable = ({
             </TableBody>
           </Table>
         </TableContainer>
-        <TablePagination
-          rowsPerPageOptions={[10, 25, 100]}
-          component="div"
-          count={rows.length}
-          rowsPerPage={rowsPerPage}
-          page={page}
-          onPageChange={handleChangePage}
-          onRowsPerPageChange={handleChangeRowsPerPage}
-        />
-      </Paper>
+      </Box>
+      
+      {/* Pagination */}
+      <TablePagination
+        rowsPerPageOptions={[10, 25, 50, 100]}
+        component="div"
+        count={rows.length}
+        rowsPerPage={rowsPerPage}
+        page={page}
+        onPageChange={handleChangePage}
+        onRowsPerPageChange={handleChangeRowsPerPage}
+      />
+      
+      {/* Bottom Action Buttons */}
       {!readonly && (
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 2 }}>
           <Button
             variant="outlined"
             color="error"
@@ -543,35 +665,27 @@ const EditableTable = ({
           >
             Discard Changes
           </Button>
-          <Button
-            variant="outlined"
-            onClick={() => onSaveChanges([])}
-          >
-            Save Draft
-          </Button>
-          <Button
-            variant="outlined"
-            color="primary"
-            startIcon={<FileDownloadIcon />}
-            onClick={handleSaveDraft}
-          >
-            Save & Export to Excel
-          </Button>
         </Box>
       )}
       
       {/* Edit Dialog */}
-      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>{currentRow ? 'Edit Row' : 'Add New Row'}</DialogTitle>
-        <DialogContent dividers>
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 2 }}>
+      <Dialog 
+        open={editDialogOpen} 
+        onClose={() => setEditDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          {currentRow && isRowAdded(currentRow) ? 'Edit New Row' : 'Edit Row'}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, pt: 1 }}>
             <TextField
               label="Process"
               value={editedRow.process || ''}
               onChange={(e) => handleEditFieldChange('process', e.target.value)}
               fullWidth
               margin="normal"
-              required
             />
             <TextField
               label="Layer"
@@ -579,7 +693,6 @@ const EditableTable = ({
               onChange={(e) => handleEditFieldChange('layer', e.target.value)}
               fullWidth
               margin="normal"
-              required
             />
             <TextField
               label="Defect Type"
@@ -587,7 +700,6 @@ const EditableTable = ({
               onChange={(e) => handleEditFieldChange('defectType', e.target.value)}
               fullWidth
               margin="normal"
-              required
             />
             <TextField
               label="Operation List"
@@ -595,7 +707,6 @@ const EditableTable = ({
               onChange={(e) => handleEditFieldChange('operationList', e.target.value)}
               fullWidth
               margin="normal"
-              required
             />
             <TextField
               label="Class Type"
