@@ -1,0 +1,2 @@
+C:\Users\snehn\OneDrive\Desktop\Projects\Editor\RCTableEditor\rctableeditor.client\obj\Debug\rctableeditor.client.esproj.CoreCompileInputs.cache
+C:\Users\snehn\OneDrive\Desktop\Projects\Editor\Editor\rctableeditor.client\obj\Debug\rctableeditor.client.esproj.CoreCompileInputs.cache

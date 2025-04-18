@@ -1,0 +1,3 @@
+﻿<Project>
+  <Import Project="..\build\RCTableEditor.Server.props" />
+</Project>

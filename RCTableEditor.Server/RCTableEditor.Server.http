@@ -1,0 +1,6 @@
+@RCTableEditor.Server_HostAddress = http://localhost:5213
+
+GET {{RCTableEditor.Server_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

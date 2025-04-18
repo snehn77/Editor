@@ -1,0 +1,24 @@
+{
+  "Version": 1,
+  "Hash": "BPfwOHeoJnXew9qkX6fuOo3Qb+t4yaPPWNU8LogKD5I=",
+  "Source": "RCTableEditor.Server",
+  "BasePath": "_content/RCTableEditor.Server",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [
+    {
+      "Identity": "C:\\Users\\snehn\\OneDrive\\Desktop\\Projects\\Editor\\Editor\\rctableeditor.client\\rctableeditor.client.esproj",
+      "Version": 2,
+      "Source": "rctableeditor.client",
+      "GetPublishAssetsTargets": "GetCurrentProjectPublishStaticWebAssetItems",
+      "AdditionalPublishProperties": "Configuration=Debug;Platform=AnyCPU",
+      "AdditionalPublishPropertiesToRemove": "WebPublishProfileFile;TargetFramework",
+      "GetBuildAssetsTargets": "GetCurrentProjectBuildStaticWebAssetItems",
+      "AdditionalBuildProperties": "Configuration=Debug;Platform=AnyCPU",
+      "AdditionalBuildPropertiesToRemove": "WebPublishProfileFile;TargetFramework"
+    }
+  ],
+  "DiscoveryPatterns": [],
+  "Assets": [],
+  "Endpoints": []
+}

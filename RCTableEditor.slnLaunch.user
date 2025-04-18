@@ -1,0 +1,15 @@
+[
+  {
+    "Name": "New Profile",
+    "Projects": [
+      {
+        "Path": "RCTableEditor.Server\\RCTableEditor.Server.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "rctableeditor.client\\rctableeditor.client.esproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]
